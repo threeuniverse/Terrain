@@ -1,13 +1,13 @@
 defineThreeUniverse(function () {
 
-    let local_part = "https://threeuniverse.org/";
+    let local_part = "https://threeuniverse.github.io/Terrain/";
 
     let maping = [
        
         {
             position: { x: 0, z: 0 },
             description: "Grass ground with single texture",
-            url: "https://threeuniverse.org/src/universe_parts/grassGround.js",
+            url: "https://threeuniverse.github.io/Terrain/src/universe_parts/grassGround.js",
             credits: "https://threejs.org/examples/#webgl_animation_cloth",
             radius:14142.13562373095
         },
