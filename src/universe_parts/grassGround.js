@@ -5,8 +5,9 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
 
 
 
-    var GroundMaterial = function (parameters, others) {
-
+    var GroundMaterial = function (parameters) {
+        this.map2 = null;
+        this.teraainMap = null;
         THREE.MeshPhongMaterial.call(this, parameters);
 
     }
@@ -16,7 +17,8 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
     GroundMaterial.prototype.onBeforeCompile = function (shader) {
 
         this.uniforms = shader.uniforms;
-
+        this.uniforms.map2 = { value: this.map2 };
+        this.uniforms.teraainMap = { value: this.teraainMap };
 
 
         shader.vertexShader = `
@@ -64,52 +66,76 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
         }
         `
         shader.fragmentShader = `
-        #define PHONG
-uniform vec3 diffuse;
-uniform vec3 emissive;
-uniform vec3 specular;
-uniform float shininess;
-uniform float opacity;
-#include <common>
-#include <packing>
-#include <dithering_pars_fragment>
-#include <color_pars_fragment>
-#include <uv_pars_fragment>
-#include <uv2_pars_fragment>
-#include <map_pars_fragment>
-#include <alphamap_pars_fragment>
-#include <aomap_pars_fragment>
-#include <lightmap_pars_fragment>
-#include <emissivemap_pars_fragment>
-#include <envmap_pars_fragment>
-#include <gradientmap_pars_fragment>
-#include <fog_pars_fragment>
-#include <bsdfs>
-#include <lights_pars_begin>
-#include <lights_phong_pars_fragment>
-#include <shadowmap_pars_fragment>
-#include <bumpmap_pars_fragment>
-#include <normalmap_pars_fragment>
-#include <specularmap_pars_fragment>
-#include <logdepthbuf_pars_fragment>
-#include <clipping_planes_pars_fragment>
-void main() {
-	#include <clipping_planes_fragment>
-	vec4 diffuseColor = vec4( diffuse, opacity );
-	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
-	vec3 totalEmissiveRadiance = emissive;
-	#include <logdepthbuf_fragment>
-	#include <map_fragment>
-	#include <color_fragment>
-	#include <alphamap_fragment>
-	#include <alphatest_fragment>
-	#include <specularmap_fragment>
-	#include <normal_fragment_begin>
-	#include <normal_fragment_maps>
-	#include <emissivemap_fragment>
-	// accumulation
-	#include <lights_phong_fragment>
-	#include <lights_fragment_begin>
+    #define PHONG
+    uniform vec3 diffuse;
+    uniform vec3 emissive;
+    uniform vec3 specular;
+    uniform float shininess;
+    uniform float opacity;
+
+    uniform sampler2D map2;
+    uniform sampler2D teraainMap;
+
+
+    #include <common>
+    #include <packing>
+    #include <dithering_pars_fragment>
+    #include <color_pars_fragment>
+    #include <uv_pars_fragment>
+    #include <uv2_pars_fragment>
+    #include <map_pars_fragment>
+    #include <alphamap_pars_fragment>
+    #include <aomap_pars_fragment>
+    #include <lightmap_pars_fragment>
+    #include <emissivemap_pars_fragment>
+    #include <envmap_pars_fragment>
+    #include <gradientmap_pars_fragment>
+    #include <fog_pars_fragment>
+    #include <bsdfs>
+    #include <lights_pars_begin>
+    #include <lights_phong_pars_fragment>
+    #include <shadowmap_pars_fragment>
+    #include <bumpmap_pars_fragment>
+    #include <normalmap_pars_fragment>
+    #include <specularmap_pars_fragment>
+    #include <logdepthbuf_pars_fragment>
+    #include <clipping_planes_pars_fragment>
+    void main() {
+        #include <clipping_planes_fragment>
+        vec4 diffuseColor = vec4( diffuse, opacity );
+        ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+        vec3 totalEmissiveRadiance = emissive;
+        #include <logdepthbuf_fragment>
+        
+        #ifdef USE_MAP
+        vec4 texelColor = texture2D( map, vUv );
+        texelColor = mapTexelToLinear( texelColor );
+        
+        
+        vec4 texelColor2 = texture2D( map2, vUv );
+        texelColor2 = mapTexelToLinear( texelColor2 );
+
+        vec4 teraainMapColor = texture2D( teraainMap, vUv );
+        teraainMapColor = mapTexelToLinear( teraainMapColor );
+
+        diffuseColor = vec4(teraainMapColor.r);
+        //  diffuseColor = mix(texelColor,texelColor2,teraainMapColor.r);
+
+        
+        #endif
+        
+
+
+        #include <color_fragment>
+        #include <alphamap_fragment>
+        #include <alphatest_fragment>
+        #include <specularmap_fragment>
+        #include <normal_fragment_begin>
+        #include <normal_fragment_maps>
+        #include <emissivemap_fragment>
+        // accumulation
+        #include <lights_phong_fragment>
+        #include <lights_fragment_begin>
 	#include <lights_fragment_maps>
 	#include <lights_fragment_end>
 	// modulation
@@ -137,63 +163,52 @@ void main() {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
     return new Promise(function (resolve, reject) {
 
+        var rockGrassTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/texture/grass_path_3_diff_1k.jpg');
         var groundTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/grasslight-big.jpg');
-        var queryTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl +'resource/texture/sECkYCE.png').then(heightmap => new UNIVERSE.QueryTextureWrapper(heightmap));
+        var queryTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/texture/sECkYCE.png').then(heightmap => new UNIVERSE.QueryTextureWrapper(heightmap));
+        var teraainPainterPromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/texture/sECkYCE2.png').then(heightmap => new UNIVERSE.QueryTextureWrapper(heightmap));
         var geometry = new THREE.PlaneBufferGeometry(20000, 20000, 100, 100);
 
 
-        Promise.all([groundTexturePromise, queryTexturePromise]).then((textures) => {
+        Promise.all([groundTexturePromise, queryTexturePromise, rockGrassTexturePromise,teraainPainterPromise]).then((textures) => {
 
             var groundTexture = textures[0];
             groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
             groundTexture.repeat.set(25, 25);
             groundTexture.anisotropy = 16;
 
-            var queryTexture= textures[1];
+            var rockGrassTexture = textures[2];
+            rockGrassTexture.wrapS = rockGrassTexture.wrapT = THREE.RepeatWrapping;
+            rockGrassTexture.repeat.set(70, 70);
+
+
+
+
+            var queryTexture = textures[1];
             var displacementMap = queryTexture.texture;
 
+
+            var teraainPainter = textures[3];
 
             var material = new GroundMaterial({
                 displacementMap: displacementMap,
                 displacementScale: 400,
                 displacementBias: -100,
                 side: THREE.DoubleSide,
-                map: groundTexture,
-                aoMap:displacementMap,
-                aoMapIntensity:1 
+                map: rockGrassTexture,
+                map2: rockGrassTexture,
+                aoMap: displacementMap,
+                teraainMap:teraainPainter,
+                aoMapIntensity: 1
             });
 
             var mesh = new THREE.Mesh(geometry, material);
             mesh.rotation.x = - Math.PI / 2;
             mesh.receiveShadow = true;
 
-            
+
 
             var originalRaycast = mesh.raycast;
             mesh.raycast = function (raycaster, intersects) {
