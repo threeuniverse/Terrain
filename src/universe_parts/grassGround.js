@@ -7,7 +7,6 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
 
     var GroundMaterial = function (parameters) {
         this.map2 = null;
-        this.teraainMap = null;
         THREE.MeshPhongMaterial.call(this, parameters);
 
     }
@@ -18,7 +17,6 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
 
         this.uniforms = shader.uniforms;
         this.uniforms.map2 = { value: this.map2 };
-        this.uniforms.teraainMap = { value: this.teraainMap };
 
 
         shader.vertexShader = `
@@ -27,6 +25,7 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
         #ifndef FLAT_SHADED
             varying vec3 vNormal;
         #endif
+        varying vec2 vUvOriginal;
         #include <common>
         #include <uv_pars_vertex>
         #include <uv2_pars_vertex>
@@ -41,6 +40,7 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
         #include <clipping_planes_pars_vertex>
         void main() {
             #include <uv_vertex>
+            vUvOriginal = uv;
             #include <uv2_vertex>
             #include <color_vertex>
             #include <beginnormal_vertex>
@@ -74,7 +74,8 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
     uniform float opacity;
 
     uniform sampler2D map2;
-    uniform sampler2D teraainMap;
+    uniform sampler2D displacementMap;
+    varying vec2 vUvOriginal;
 
 
     #include <common>
@@ -115,11 +116,9 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
         vec4 texelColor2 = texture2D( map2, vUv );
         texelColor2 = mapTexelToLinear( texelColor2 );
 
-        vec4 teraainMapColor = texture2D( teraainMap, vUv );
-        teraainMapColor = mapTexelToLinear( teraainMapColor );
+        vec4 teraainMapColor = texture2D( displacementMap, vUvOriginal );
 
-        diffuseColor = vec4(teraainMapColor.r);
-        //  diffuseColor = mix(texelColor,texelColor2,teraainMapColor.r);
+        diffuseColor = mix(texelColor,texelColor2,teraainMapColor.g+0.4);
 
         
         #endif
@@ -168,12 +167,10 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
         var rockGrassTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/texture/grass_path_3_diff_1k.jpg');
         var groundTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/grasslight-big.jpg');
         var queryTexturePromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/texture/sECkYCE.png').then(heightmap => new UNIVERSE.QueryTextureWrapper(heightmap));
-        var teraainPainterPromise = UNIVERSE.TextureLoader.load(options.baseUrl + 'resource/texture/sECkYCE2.png').then(heightmap => new UNIVERSE.QueryTextureWrapper(heightmap));
         var geometry = new THREE.PlaneBufferGeometry(20000, 20000, 100, 100);
 
 
-        Promise.all([groundTexturePromise, queryTexturePromise, rockGrassTexturePromise,teraainPainterPromise]).then((textures) => {
-
+        Promise.all([groundTexturePromise, queryTexturePromise, rockGrassTexturePromise]).then((textures) => {
             var groundTexture = textures[0];
             groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
             groundTexture.repeat.set(25, 25);
@@ -182,7 +179,7 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
             var rockGrassTexture = textures[2];
             rockGrassTexture.wrapS = rockGrassTexture.wrapT = THREE.RepeatWrapping;
             rockGrassTexture.repeat.set(70, 70);
-
+            groundTexture.anisotropy = 16;
 
 
 
@@ -190,17 +187,15 @@ defineThreeUniverse(function (THREE, UNIVERSE, options) {
             var displacementMap = queryTexture.texture;
 
 
-            var teraainPainter = textures[3];
 
             var material = new GroundMaterial({
                 displacementMap: displacementMap,
                 displacementScale: 400,
                 displacementBias: -100,
                 side: THREE.DoubleSide,
-                map: rockGrassTexture,
+                map: groundTexture,
                 map2: rockGrassTexture,
                 aoMap: displacementMap,
-                teraainMap:teraainPainter,
                 aoMapIntensity: 1
             });
 
